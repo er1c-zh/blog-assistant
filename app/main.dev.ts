@@ -11,10 +11,18 @@
 import 'core-js/stable';
 import 'regenerator-runtime/runtime';
 import path from 'path';
-import { app, BrowserWindow } from 'electron';
+import {
+  app,
+  BrowserWindow,
+  globalShortcut,
+  ipcMain,
+  Menu,
+  Tray,
+} from 'electron';
 import { autoUpdater } from 'electron-updater';
 import log from 'electron-log';
 import MenuBuilder from './menu';
+import snapshot from './snapshot';
 
 export default class AppUpdater {
   constructor() {
@@ -24,7 +32,17 @@ export default class AppUpdater {
   }
 }
 
+const RESOURCES_PATH = app.isPackaged
+  ? path.join(process.resourcesPath, 'resources')
+  : path.join(__dirname, '../resources');
+
+const getAssetPath = (...paths: string[]): string => {
+  return path.join(RESOURCES_PATH, ...paths);
+};
+
 let mainWindow: BrowserWindow | null = null;
+
+const windows = new Set();
 
 if (process.env.NODE_ENV === 'production') {
   const sourceMapSupport = require('source-map-support');
@@ -61,14 +79,6 @@ const createWindow = async () => {
     await installExtensions();
   }
 
-  const RESOURCES_PATH = app.isPackaged
-    ? path.join(process.resourcesPath, 'resources')
-    : path.join(__dirname, '../resources');
-
-  const getAssetPath = (...paths: string[]): string => {
-    return path.join(RESOURCES_PATH, ...paths);
-  };
-
   mainWindow = new BrowserWindow({
     show: false,
     width: 1024,
@@ -86,19 +96,13 @@ const createWindow = async () => {
           },
   });
 
-  mainWindow.loadURL(`file://${__dirname}/app.html`);
+  windows.add(mainWindow);
 
-  // @TODO: Use 'ready-to-show' event
-  //        https://github.com/electron/electron/blob/master/docs/api/browser-window.md#using-ready-to-show-event
-  mainWindow.webContents.on('did-finish-load', () => {
+  // mainWindow.loadURL(`file://${__dirname}/app.html`);
+
+  mainWindow.on('ready-to-show', () => {
     if (!mainWindow) {
       throw new Error('"mainWindow" is not defined');
-    }
-    if (process.env.START_MINIMIZED) {
-      mainWindow.minimize();
-    } else {
-      mainWindow.show();
-      mainWindow.focus();
     }
   });
 
@@ -137,4 +141,49 @@ app.on('activate', () => {
   // On macOS it's common to re-create a window in the app when the
   // dock icon is clicked and there are no other windows open.
   if (mainWindow === null) createWindow();
+});
+
+/**
+ * add tray
+ */
+let tray = null;
+// eslint-disable-next-line promise/catch-or-return,promise/always-return
+app.whenReady().then(() => {
+  const iconPath = path.join(getAssetPath('icon.png'));
+  console.log(`load tray icon from:${iconPath}`);
+  tray = new Tray(iconPath);
+  const menu = Menu.buildFromTemplate([
+    { label: 'Settings', type: 'normal' },
+    { label: 'split0', type: 'separator' },
+    { label: 'About', type: 'normal' },
+  ]);
+  tray.setToolTip('Blog Assistant');
+  tray.setContextMenu(menu);
+});
+
+/**
+ * register shortcut
+ */
+// eslint-disable-next-line promise/catch-or-return,promise/always-return
+app.whenReady().then(() => {
+  globalShortcut.register('CommandOrControl+Alt+A', () => {
+    console.log('Create screen snapshot window');
+    const w = snapshot();
+    if (w == null) {
+      console.log('snapshot window already run');
+      return;
+    }
+    w.on('ready-to-show', () => {
+      // w.show();
+    });
+    windows.add(w);
+    w.on('closed', () => {
+      windows.delete(w);
+    });
+    console.log('snapshot window create finish');
+    ipcMain.on('show-snapshot', () => {
+      w.show();
+      w.setFullScreen(true);
+    });
+  });
 });
