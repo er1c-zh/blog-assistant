@@ -11,7 +11,14 @@
 import 'core-js/stable';
 import 'regenerator-runtime/runtime';
 import path from 'path';
-import { app, BrowserWindow, globalShortcut, Menu, Tray } from 'electron';
+import {
+  app,
+  BrowserWindow,
+  globalShortcut,
+  ipcMain,
+  Menu,
+  Tray,
+} from 'electron';
 import { autoUpdater } from 'electron-updater';
 import log from 'electron-log';
 import MenuBuilder from './menu';
@@ -167,12 +174,16 @@ app.whenReady().then(() => {
       return;
     }
     w.on('ready-to-show', () => {
-      w.show();
+      // w.show();
     });
     windows.add(w);
     w.on('closed', () => {
       windows.delete(w);
     });
     console.log('snapshot window create finish');
+    ipcMain.on('show-snapshot', () => {
+      w.show();
+      w.setFullScreen(true);
+    });
   });
 });

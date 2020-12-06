@@ -28,7 +28,6 @@ export default () => {
           },
   });
 
-  w.setFullScreen(true);
   w.loadURL(`file://${__dirname}/app.html#/snapshot`);
   w.on('closed', () => {
     once = false;
