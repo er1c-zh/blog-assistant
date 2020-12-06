@@ -1,0 +1,18 @@
+{
+  "name": "blog-assistant",
+  "productName": "BlogAssistant",
+  "version": "0.1.0",
+  "description": "A toolset helping blog writer.",
+  "main": "./main.prod.js",
+  "author": {
+    "name": "er1c",
+    "email": "ericzhao96@hotmail.com",
+    "url": "https://github.com/er1c-zh/blog-assistant"
+  },
+  "scripts": {
+    "electron-rebuild": "node -r ../internals/scripts/BabelRegister.js ../internals/scripts/ElectronRebuild.js",
+    "postinstall": "yarn electron-rebuild"
+  },
+  "license": "MIT",
+  "dependencies": {}
+}
