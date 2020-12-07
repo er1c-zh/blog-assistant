@@ -18,6 +18,7 @@ import {
   ipcMain,
   Menu,
   Tray,
+  screen,
 } from 'electron';
 import { autoUpdater } from 'electron-updater';
 import log from 'electron-log';
@@ -168,6 +169,10 @@ app.whenReady().then(() => {
 app.whenReady().then(() => {
   globalShortcut.register('CommandOrControl+Alt+A', () => {
     console.log('Create screen snapshot window');
+    // eslint-disable-next-line no-restricted-globals
+    const displays = screen.getAllDisplays();
+    console.log(displays);
+
     const w = snapshot();
     if (w == null) {
       console.log('snapshot window already run');
@@ -178,6 +183,7 @@ app.whenReady().then(() => {
     });
     windows.add(w);
     w.on('closed', () => {
+      console.log('snapshot window delete from set');
       windows.delete(w);
     });
     console.log('snapshot window create finish');

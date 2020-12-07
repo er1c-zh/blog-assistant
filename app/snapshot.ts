@@ -30,6 +30,7 @@ export default () => {
 
   w.loadURL(`file://${__dirname}/app.html#/snapshot`);
   w.on('closed', () => {
+    console.log('snapshot window clear once');
     once = false;
   });
 
