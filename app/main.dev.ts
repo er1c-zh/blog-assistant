@@ -43,8 +43,6 @@ const getAssetPath = (...paths: string[]): string => {
 
 let mainWindow: BrowserWindow | null = null;
 
-const windows = new Set();
-
 if (process.env.NODE_ENV === 'production') {
   const sourceMapSupport = require('source-map-support');
   sourceMapSupport.install();
@@ -96,8 +94,6 @@ const createWindow = async () => {
             preload: path.join(__dirname, 'dist/renderer.prod.js'),
           },
   });
-
-  windows.add(mainWindow);
 
   // mainWindow.loadURL(`file://${__dirname}/app.html`);
 
@@ -162,34 +158,58 @@ app.whenReady().then(() => {
   tray.setContextMenu(menu);
 });
 
+const windowsMap = new Map();
+let once = false;
 /**
  * register shortcut
  */
 // eslint-disable-next-line promise/catch-or-return,promise/always-return
 app.whenReady().then(() => {
-  globalShortcut.register('CommandOrControl+Alt+A', () => {
+  // eslint-disable-next-line no-loop-func
+  ipcMain.on('close-snapshot-all', () => {
+    console.log('close-snapshot-all');
+    // eslint-disable-next-line no-shadow
+    windowsMap.forEach((_w: any) => {
+      _w.close();
+    });
+    windowsMap.clear();
+    once = false;
+  });
+
+  ipcMain.on('show-snapshot', () => {
+    console.log('show-snapshot');
+    windowsMap.forEach((_w: any) => {
+      _w.show();
+      _w.setFullScreen(true);
+    });
+  });
+
+  globalShortcut.register('CommandOrControl+Alt+D', () => {
     console.log('Create screen snapshot window');
+    if (once) {
+      console.log('Already exist, return;');
+      return;
+    }
+    once = true;
     // eslint-disable-next-line no-restricted-globals
     const displays = screen.getAllDisplays();
     console.log(displays);
-
-    const w = snapshot();
-    if (w == null) {
-      console.log('snapshot window already run');
-      return;
+    // eslint-disable-next-line no-restricted-syntax
+    for (const display of displays) {
+      console.log(`create on display${display.id}`);
+      console.log(display);
+      const f = () => {
+        const w = snapshot(display);
+        if (w == null) {
+          console.log('snapshot window already run');
+          return;
+        }
+        console.log(`snapshot result=${w}`);
+        console.log(w);
+        windowsMap.set(display.id, w);
+        console.log('snapshot window create finish');
+      };
+      f();
     }
-    w.on('ready-to-show', () => {
-      // w.show();
-    });
-    windows.add(w);
-    w.on('closed', () => {
-      console.log('snapshot window delete from set');
-      windows.delete(w);
-    });
-    console.log('snapshot window create finish');
-    ipcMain.on('show-snapshot', () => {
-      w.show();
-      w.setFullScreen(true);
-    });
   });
 });
