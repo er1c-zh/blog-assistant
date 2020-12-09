@@ -19,7 +19,6 @@ export default (display: Display) => {
             preload: path.join(__dirname, 'dist/renderer.prod.js'),
           },
   });
-  w.loadURL(`file://${__dirname}/app.html#/snapshot`);
   console.log('finish create snapshot window');
   return w;
 };

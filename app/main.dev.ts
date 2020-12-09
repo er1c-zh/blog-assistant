@@ -194,9 +194,10 @@ app.whenReady().then(() => {
     // eslint-disable-next-line no-restricted-globals
     const displays = screen.getAllDisplays();
     console.log(displays);
-    // eslint-disable-next-line no-restricted-syntax
-    for (const display of displays) {
-      console.log(`create on display${display.id}`);
+    // eslint-disable-next-line no-restricted-syntax,guard-for-in
+    for (const idx in displays) {
+      const display = displays[idx];
+      console.log(`create on display${display.id}, idx=${idx}`);
       console.log(display);
       const f = () => {
         const w = snapshot(display);
@@ -206,6 +207,9 @@ app.whenReady().then(() => {
         }
         console.log(`snapshot result=${w}`);
         console.log(w);
+        // eslint-disable-next-line @typescript-eslint/naming-convention,no-underscore-dangle
+        const _idx = Number(idx) + 1;
+        w.loadURL(`file://${__dirname}/app.html#/snapshot/${_idx}`);
         windowsMap.set(display.id, w);
         console.log('snapshot window create finish');
       };
