@@ -7,7 +7,9 @@ class Snapshot extends React.Component {
   constructor(props: any) {
     super(props);
     this.state = {
-      imgList: [],
+      img: null,
+      width: 0,
+      height: 0,
     };
     document.addEventListener('keydown', (e: any) => {
       switch (e.key) {
@@ -25,7 +27,6 @@ class Snapshot extends React.Component {
   async getScreenShot(idx: any) {
     // eslint-disable-next-line react-hooks/rules-of-hooks
     console.log(`getScreenShot idx=${idx}`);
-    const result = [];
     // eslint-disable-next-line promise/catch-or-return
     const sources = await desktopCapturer.getSources({
       types: ['screen'],
@@ -71,12 +72,18 @@ class Snapshot extends React.Component {
       );
       const snapshotDataURL = snapshotCanvas.toDataURL();
       // console.log(snapshotDataURL);
-      result.push({
+      return {
+        ok: true,
         key: snapshotDataURL,
         data: snapshotDataURL,
-      });
+        height: videoContainer.videoHeight,
+        width: videoContainer.videoWidth,
+      };
     }
-    return result;
+    return {
+      ok: false,
+      msg: 'fail to get snapshot!',
+    };
   }
 
   componentDidMount() {
@@ -84,22 +91,33 @@ class Snapshot extends React.Component {
     // const idx = useParams();
     // eslint-disable-next-line react/destructuring-assignment,react/prop-types
     const { idx } = (this.props as any).match.params;
-    // eslint-disable-next-line @typescript-eslint/no-use-before-define,promise/catch-or-return
-    this.getScreenShot(idx).then((imgDataURLList) => {
-      // eslint-disable-next-line react/jsx-key
-      // eslint-disable-next-line no-restricted-syntax,promise/always-return
-      const result: JSX.Element[] = [];
-      // eslint-disable-next-line no-restricted-syntax,promise/always-return
-      for (const imgData of imgDataURLList) {
-        // eslint-disable-next-line jsx-a11y/alt-text
-        result.push(
-          // eslint-disable-next-line react/style-prop-object
-          <img alt={imgData.data} src={imgData.data} />
-        );
-        result.push(<br />);
+    // eslint-disable-next-line @typescript-eslint/no-use-before-define,promise/catch-or-return,promise/always-return
+    this.getScreenShot(idx).then((imgData) => {
+      // eslint-disable-next-line promise/always-return
+      if (!imgData.ok) {
+        this.setState({
+          img: <p>${imgData.msg}</p>,
+        });
+        return;
       }
+      // eslint-disable-next-line jsx-a11y/alt-text
+      const img = (
+        // eslint-disable-next-line jsx-a11y/alt-text
+        <img
+          src={imgData.data}
+          style={{
+            width: imgData.width,
+            height: imgData.height,
+          }}
+        />
+      );
+      // eslint-disable-next-line react/style-prop-object
+      // <img alt={imgData?.data} src={imgData?.data} style={Map(
+      // )}/>
       this.setState({
-        imgList: result,
+        img,
+        width: imgData.width,
+        height: imgData.height,
       });
       ipcRenderer.send('show-snapshot', 'done');
     });
@@ -107,7 +125,20 @@ class Snapshot extends React.Component {
 
   render() {
     // eslint-disable-next-line react/prop-types,react/destructuring-assignment
-    return <div id="shot_container">{this.state.imgList}</div>;
+    return (
+      <div
+        id="shot_container"
+        style={{
+          // eslint-disable-next-line react/destructuring-assignment
+          width: `${this.state.width}px`,
+          // eslint-disable-next-line react/destructuring-assignment
+          height: `${this.state.height}px`,
+        }}
+      >
+        {/* eslint-disable-next-line react/destructuring-assignment */}
+        {this.state.img}
+      </div>
+    );
   }
 }
 
