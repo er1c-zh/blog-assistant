@@ -1,6 +1,6 @@
 import React from 'react';
 import { desktopCapturer, ipcRenderer } from 'electron';
-import { useParams, withRouter } from 'react-router';
+import { withRouter } from 'react-router';
 
 class Snapshot extends React.Component {
   // eslint-disable-next-line @typescript-eslint/no-useless-constructor
@@ -47,6 +47,7 @@ class Snapshot extends React.Component {
             chromeMediaSource: 'desktop',
             chromeMediaSourceId: source.id,
           },
+          cursor: 'never',
         },
       });
 
