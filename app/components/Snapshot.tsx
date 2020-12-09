@@ -106,6 +106,7 @@ class Snapshot extends React.Component {
         <img
           src={imgData.data}
           style={{
+            zIndex: 0,
             width: imgData.width,
             height: imgData.height,
           }}
@@ -120,6 +121,72 @@ class Snapshot extends React.Component {
         height: imgData.height,
       });
       ipcRenderer.send('show-snapshot', 'done');
+
+      const c = document.getElementById('mask') as HTMLCanvasElement;
+      // eslint-disable-next-line promise/always-return
+      if (c != null) {
+        const ctx = c.getContext('2d');
+        if (ctx != null) {
+          const convert = (e: MouseEvent) => {
+            const x = e.clientX;
+            const y = e.clientY;
+            const convertRect = c.getBoundingClientRect();
+            console.log(convertRect);
+            // eslint-disable-next-line @typescript-eslint/naming-convention,no-underscore-dangle
+            const _x = x - convertRect.left * (c.width / convertRect.width);
+            // eslint-disable-next-line @typescript-eslint/naming-convention,no-underscore-dangle
+            const _y = y - convertRect.top * (c.height / convertRect.height);
+            console.log(`convert(${x},${y}) to (${_x},${_y})`);
+            return {
+              x: _x,
+              y: _y,
+            };
+          };
+          const clear = () => {
+            ctx.clearRect(0, 0, c.width, c.height);
+            ctx.fillStyle = '#000000';
+            ctx.globalAlpha = 0.64;
+            ctx.fillRect(0, 0, c.width, c.height);
+          };
+          clear();
+          let downX = 0;
+          let downY = 0;
+          let upX = 0;
+          let upY = 0;
+          let downing = false;
+          c.onmousedown = (e: MouseEvent) => {
+            const { x, y } = convert(e);
+            console.log(`onmousedown (${x},${y})`);
+            clear();
+            downX = x;
+            downY = y;
+            downing = true;
+          };
+          c.onmousemove = (e: MouseEvent) => {
+            if (!downing) {
+              return;
+            }
+            const { x, y } = convert(e);
+            console.log(`onmousemove(${x},${y})`);
+            clear();
+            console.log(
+              `clearReact(${downX}, ${downY}, ${x - downX}, ${y - downY})`
+            );
+            clear();
+            ctx.clearRect(downX, downY, x - downX, y - downY);
+          };
+          c.onmouseup = (e: MouseEvent) => {
+            const { x, y } = convert(e);
+            console.log(`onmouseup (${x},${y})`);
+            downing = false;
+            upX = x;
+            upY = y;
+            clear();
+            ctx.clearRect(downX, downY, x - downX, y - downY);
+            console.log(`(${downX},${downY}) (${upX},${upY})`);
+          };
+        }
+      }
     });
   }
 
@@ -137,6 +204,21 @@ class Snapshot extends React.Component {
       >
         {/* eslint-disable-next-line react/destructuring-assignment */}
         {this.state.img}
+        <canvas
+          id="mask"
+          width={`${this.state.width}px`}
+          height={`${this.state.height}px`}
+          style={{
+            position: 'absolute',
+            left: 0,
+            top: 0,
+            zIndex: 1,
+            // eslint-disable-next-line react/destructuring-assignment
+            width: `${this.state.width}px`,
+            // eslint-disable-next-line react/destructuring-assignment
+            height: `${this.state.height}px`,
+          }}
+        />
       </div>
     );
   }
