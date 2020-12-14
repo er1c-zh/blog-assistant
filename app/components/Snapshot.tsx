@@ -4,7 +4,15 @@ import { withRouter } from 'react-router';
 import svgSelect from '../resources/select-bold.svg';
 import svgCancel from '../resources/close-bold.svg';
 
-class Snapshot extends React.Component {
+class Snapshot extends React.Component<
+  // eslint-disable-next-line @typescript-eslint/ban-types
+  {},
+  {
+    img: null | JSX.Element;
+    width: number | undefined;
+    height: number | undefined;
+  }
+> {
   // eslint-disable-next-line @typescript-eslint/no-useless-constructor,react/sort-comp
   private maskCtx: CanvasRenderingContext2D | null | undefined;
 
@@ -177,6 +185,10 @@ class Snapshot extends React.Component {
         this.setState({
           // eslint-disable-next-line react/no-unused-state
           img: <p>${imgData.msg}</p>,
+          // eslint-disable-next-line react/no-unused-state
+          width: 0,
+          // eslint-disable-next-line react/no-unused-state
+          height: 0,
         });
         return;
       }
@@ -272,9 +284,7 @@ class Snapshot extends React.Component {
   }
 
   render() {
-    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-    // @ts-ignore
-    const { visible } = this.state;
+    const visible = this.state;
     // eslint-disable-next-line react/prop-types,react/destructuring-assignment
     return (
       <div
