@@ -6,5 +6,8 @@
 
 body {
   font-family: "Ubuntu Mono", serif;
-  overflow-y: hidden;
+  /*overflow-y: hidden;*/
+  margin: 0;
+  border: 0;
+  padding: 0;
 }

@@ -1,19 +1,11 @@
-import { BrowserWindow } from 'electron';
+import { BrowserWindow, Display } from 'electron';
 import path from 'path';
 
-let once = false;
-
-export default () => {
+export default (display: Display) => {
   console.log('start create snapshot window');
-
-  if (once) {
-    console.log('already one snapshot window, do NOT create');
-    return null;
-  }
-
-  once = true;
-
   const w = new BrowserWindow({
+    x: display.bounds.x,
+    y: display.bounds.y,
     show: false,
     frame: false,
     webPreferences:
@@ -27,13 +19,6 @@ export default () => {
             preload: path.join(__dirname, 'dist/renderer.prod.js'),
           },
   });
-
-  w.loadURL(`file://${__dirname}/app.html#/snapshot`);
-  w.on('closed', () => {
-    once = false;
-  });
-
   console.log('finish create snapshot window');
-
   return w;
 };

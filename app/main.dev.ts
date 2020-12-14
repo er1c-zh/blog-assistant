@@ -18,9 +18,11 @@ import {
   ipcMain,
   Menu,
   Tray,
+  screen,
 } from 'electron';
 import { autoUpdater } from 'electron-updater';
 import log from 'electron-log';
+import fs from 'fs';
 import MenuBuilder from './menu';
 import snapshot from './snapshot';
 
@@ -41,8 +43,6 @@ const getAssetPath = (...paths: string[]): string => {
 };
 
 let mainWindow: BrowserWindow | null = null;
-
-const windows = new Set();
 
 if (process.env.NODE_ENV === 'production') {
   const sourceMapSupport = require('source-map-support');
@@ -95,8 +95,6 @@ const createWindow = async () => {
             preload: path.join(__dirname, 'dist/renderer.prod.js'),
           },
   });
-
-  windows.add(mainWindow);
 
   // mainWindow.loadURL(`file://${__dirname}/app.html`);
 
@@ -161,29 +159,70 @@ app.whenReady().then(() => {
   tray.setContextMenu(menu);
 });
 
+const windowsMap = new Map();
+let once = false;
 /**
  * register shortcut
  */
 // eslint-disable-next-line promise/catch-or-return,promise/always-return
 app.whenReady().then(() => {
-  globalShortcut.register('CommandOrControl+Alt+A', () => {
+  // eslint-disable-next-line no-loop-func
+  ipcMain.on('close-snapshot-all', () => {
+    console.log('close-snapshot-all');
+    // eslint-disable-next-line no-shadow
+    windowsMap.forEach((_w: any) => {
+      _w.close();
+    });
+    windowsMap.clear();
+    once = false;
+  });
+
+  ipcMain.on('show-snapshot', () => {
+    console.log('show-snapshot');
+    windowsMap.forEach((_w: any) => {
+      _w.show();
+      _w.setFullScreen(true);
+    });
+  });
+
+  ipcMain.handle('get-img', async (_e, ...paths: string[]) => {
+    // eslint-disable-next-line @typescript-eslint/no-use-before-define
+    const p = getAssetPath(...paths);
+    const data = fs.readFileSync(p);
+    console.log(data);
+    return data;
+  });
+
+  globalShortcut.register('CommandOrControl+Alt+D', () => {
     console.log('Create screen snapshot window');
-    const w = snapshot();
-    if (w == null) {
-      console.log('snapshot window already run');
+    if (once) {
+      console.log('Already exist, return;');
       return;
     }
-    w.on('ready-to-show', () => {
-      // w.show();
-    });
-    windows.add(w);
-    w.on('closed', () => {
-      windows.delete(w);
-    });
-    console.log('snapshot window create finish');
-    ipcMain.on('show-snapshot', () => {
-      w.show();
-      w.setFullScreen(true);
-    });
+    once = true;
+    // eslint-disable-next-line no-restricted-globals
+    const displays = screen.getAllDisplays();
+    console.log(displays);
+    // eslint-disable-next-line no-restricted-syntax,guard-for-in
+    for (const idx in displays) {
+      const display = displays[idx];
+      console.log(`create on display${display.id}, idx=${idx}`);
+      console.log(display);
+      const f = () => {
+        const w = snapshot(display);
+        if (w == null) {
+          console.log('snapshot window already run');
+          return;
+        }
+        console.log(`snapshot result=${w}`);
+        console.log(w);
+        // eslint-disable-next-line @typescript-eslint/naming-convention,no-underscore-dangle
+        const _idx = Number(idx) + 1;
+        w.loadURL(`file://${__dirname}/app.html#/snapshot/${_idx}`);
+        windowsMap.set(display.id, w);
+        console.log('snapshot window create finish');
+      };
+      f();
+    }
   });
 });
