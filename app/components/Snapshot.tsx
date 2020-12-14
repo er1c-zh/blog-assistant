@@ -1,14 +1,33 @@
 import React from 'react';
 import { desktopCapturer, ipcRenderer } from 'electron';
 import { withRouter } from 'react-router';
+import svgSelect from '../resources/select-bold.svg';
+import svgCancel from '../resources/close-bold.svg';
 
 class Snapshot extends React.Component {
-  // eslint-disable-next-line @typescript-eslint/no-useless-constructor
+  // eslint-disable-next-line @typescript-eslint/no-useless-constructor,react/sort-comp
+  private maskCtx: CanvasRenderingContext2D | null | undefined;
+
+  private maskCanvas: HTMLCanvasElement | null | undefined;
+
+  private downX = 0;
+
+  private downY = 0;
+
+  private upX = 0;
+
+  private upY = 0;
+
+  private downing = false;
+
   constructor(props: any) {
     super(props);
     this.state = {
+      // eslint-disable-next-line react/no-unused-state
       img: null,
+      // eslint-disable-next-line react/no-unused-state
       width: 0,
+      // eslint-disable-next-line react/no-unused-state
       height: 0,
     };
     document.addEventListener('keydown', (e: any) => {
@@ -24,7 +43,7 @@ class Snapshot extends React.Component {
   }
 
   // eslint-disable-next-line class-methods-use-this,react/sort-comp
-  async getScreenShot(idx: any) {
+  private async getScreenShot(idx: any) {
     // eslint-disable-next-line react-hooks/rules-of-hooks
     console.log(`getScreenShot idx=${idx}`);
     // eslint-disable-next-line promise/catch-or-return
@@ -86,6 +105,66 @@ class Snapshot extends React.Component {
     };
   }
 
+  private async drawToolBar() {
+    console.log(
+      `drawToolBar canvas width:${this.maskCanvas?.width}, height:${this.maskCanvas?.height}`
+    );
+    if (!this.maskCanvas) {
+      console.log('this.maskCanvas is null');
+      return;
+    }
+    if (!this.maskCtx) {
+      console.log('this.maskCtx is null');
+      return;
+    }
+
+    const iconList: string[] = [svgSelect.toString(), svgCancel.toString()];
+    const iconCnt = iconList.length;
+    // const toolBarHeight = this.maskCanvas.height / 32;
+    const toolBarHeight = 32;
+    const toolBarWidthPerItem = toolBarHeight;
+    const toolBarFromX = Math.max(
+      0,
+      Math.max(this.upX, this.downX) - iconCnt * toolBarWidthPerItem
+    );
+    const toolBarFromY = Math.min(
+      Math.max(this.upY, this.downY),
+      this.maskCanvas.height - toolBarHeight
+    );
+
+    console.log(`drawToolBar(${toolBarFromX},${toolBarFromY})`);
+
+    this.maskCtx.fillStyle = '#ff00ff';
+    this.maskCtx.globalAlpha = 1;
+    this.maskCtx.fillRect(
+      toolBarFromX,
+      toolBarFromY,
+      toolBarWidthPerItem * 2,
+      toolBarHeight
+    );
+    this.maskCtx.fillStyle = '#00ff00';
+    this.maskCtx.globalAlpha = 1;
+
+    for (let i = 0; i < iconList.length; i += 1) {
+      const iconImg = new Image();
+      // eslint-disable-next-line no-loop-func
+      iconImg.onload = () => {
+        if (this.maskCtx != null) {
+          this.maskCtx.globalAlpha = 1;
+          this.maskCtx.drawImage(
+            iconImg,
+            toolBarFromX + toolBarWidthPerItem * i,
+            toolBarFromY,
+            toolBarWidthPerItem,
+            toolBarHeight
+          );
+        }
+      };
+      iconImg.src = iconList[i];
+    }
+  }
+
+  // eslint-disable-next-line react/sort-comp
   componentDidMount() {
     // eslint-disable-next-line react-hooks/rules-of-hooks
     // const idx = useParams();
@@ -96,6 +175,7 @@ class Snapshot extends React.Component {
       // eslint-disable-next-line promise/always-return
       if (!imgData.ok) {
         this.setState({
+          // eslint-disable-next-line react/no-unused-state
           img: <p>${imgData.msg}</p>,
         });
         return;
@@ -116,107 +196,113 @@ class Snapshot extends React.Component {
       // <img alt={imgData?.data} src={imgData?.data} style={Map(
       // )}/>
       this.setState({
+        // eslint-disable-next-line react/no-unused-state
         img,
+        // eslint-disable-next-line react/no-unused-state
         width: imgData.width,
+        // eslint-disable-next-line react/no-unused-state
         height: imgData.height,
       });
       ipcRenderer.send('show-snapshot', 'done');
 
-      const c = document.getElementById('mask') as HTMLCanvasElement;
+      const c = this.maskCanvas;
+      const ctx = this.maskCtx;
       // eslint-disable-next-line promise/always-return
-      if (c != null) {
-        const ctx = c.getContext('2d');
-        if (ctx != null) {
-          const convert = (e: MouseEvent) => {
-            const x = e.clientX;
-            const y = e.clientY;
-            const convertRect = c.getBoundingClientRect();
-            console.log(convertRect);
-            // eslint-disable-next-line @typescript-eslint/naming-convention,no-underscore-dangle
-            const _x = x - convertRect.left * (c.width / convertRect.width);
-            // eslint-disable-next-line @typescript-eslint/naming-convention,no-underscore-dangle
-            const _y = y - convertRect.top * (c.height / convertRect.height);
-            console.log(`convert(${x},${y}) to (${_x},${_y})`);
-            return {
-              x: _x,
-              y: _y,
-            };
+      if (c != null && ctx != null) {
+        const convert = (e: MouseEvent) => {
+          const x = e.clientX;
+          const y = e.clientY;
+          const convertRect = c.getBoundingClientRect();
+          console.log(convertRect);
+          // eslint-disable-next-line @typescript-eslint/naming-convention,no-underscore-dangle
+          const _x = x - convertRect.left * (c.width / convertRect.width);
+          // eslint-disable-next-line @typescript-eslint/naming-convention,no-underscore-dangle
+          const _y = y - convertRect.top * (c.height / convertRect.height);
+          console.log(`convert(${x},${y}) to (${_x},${_y})`);
+          return {
+            x: _x,
+            y: _y,
           };
-          const clear = () => {
-            ctx.clearRect(0, 0, c.width, c.height);
-            ctx.fillStyle = '#000000';
-            ctx.globalAlpha = 0.64;
-            ctx.fillRect(0, 0, c.width, c.height);
-          };
+        };
+        const clear = () => {
+          ctx.clearRect(0, 0, c.width, c.height);
+          ctx.fillStyle = '#000000';
+          ctx.globalAlpha = 0.64;
+          ctx.fillRect(0, 0, c.width, c.height);
+        };
+        clear();
+        c.onmousedown = (e: MouseEvent) => {
+          const { x, y } = convert(e);
+          console.log(`onmousedown (${x},${y})`);
           clear();
-          let downX = 0;
-          let downY = 0;
-          let upX = 0;
-          let upY = 0;
-          let downing = false;
-          c.onmousedown = (e: MouseEvent) => {
-            const { x, y } = convert(e);
-            console.log(`onmousedown (${x},${y})`);
-            clear();
-            downX = x;
-            downY = y;
-            downing = true;
-          };
-          c.onmousemove = (e: MouseEvent) => {
-            if (!downing) {
-              return;
-            }
-            const { x, y } = convert(e);
-            console.log(`onmousemove(${x},${y})`);
-            clear();
-            console.log(
-              `clearReact(${downX}, ${downY}, ${x - downX}, ${y - downY})`
-            );
-            clear();
-            ctx.clearRect(downX, downY, x - downX, y - downY);
-          };
-          c.onmouseup = (e: MouseEvent) => {
-            const { x, y } = convert(e);
-            console.log(`onmouseup (${x},${y})`);
-            downing = false;
-            upX = x;
-            upY = y;
-            clear();
-            ctx.clearRect(downX, downY, x - downX, y - downY);
-            console.log(`(${downX},${downY}) (${upX},${upY})`);
-          };
-        }
+          this.downX = x;
+          this.downY = y;
+          this.downing = true;
+        };
+        c.onmousemove = (e: MouseEvent) => {
+          if (!this.downing) {
+            return;
+          }
+          const { x, y } = convert(e);
+          console.log(`onmousemove(${x},${y})`);
+          clear();
+          console.log(
+            `clearReact(${this.downX}, ${this.downY}, ${x - this.downX}, ${
+              y - this.downY
+            })`
+          );
+          clear();
+          ctx.clearRect(this.downX, this.downY, x - this.downX, y - this.downY);
+        };
+        c.onmouseup = (e: MouseEvent) => {
+          const { x, y } = convert(e);
+          console.log(`onmouseup (${x},${y})`);
+          this.downing = false;
+          this.upX = x;
+          this.upY = y;
+          clear();
+          ctx.clearRect(this.downX, this.downY, x - this.downX, y - this.downY);
+          console.log(
+            `(${this.downX},${this.downY}) (${this.upX},${this.upY})`
+          );
+          this.drawToolBar();
+        };
       }
     });
   }
 
   render() {
+    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+    // @ts-ignore
+    const { visible } = this.state;
     // eslint-disable-next-line react/prop-types,react/destructuring-assignment
     return (
       <div
         id="shot_container"
         style={{
-          // eslint-disable-next-line react/destructuring-assignment
-          width: `${this.state.width}px`,
-          // eslint-disable-next-line react/destructuring-assignment
-          height: `${this.state.height}px`,
+          width: `${visible.width}px`,
+          height: `${visible.height}px`,
         }}
       >
         {/* eslint-disable-next-line react/destructuring-assignment */}
-        {this.state.img}
+        {visible.img}
         <canvas
           id="mask"
-          width={`${this.state.width}px`}
-          height={`${this.state.height}px`}
+          width={`${visible.width}px`}
+          height={`${visible.height}px`}
           style={{
             position: 'absolute',
             left: 0,
             top: 0,
             zIndex: 1,
             // eslint-disable-next-line react/destructuring-assignment
-            width: `${this.state.width}px`,
+            width: `${visible.width}px`,
             // eslint-disable-next-line react/destructuring-assignment
-            height: `${this.state.height}px`,
+            height: `${visible.height}px`,
+          }}
+          ref={(c) => {
+            this.maskCanvas = c;
+            this.maskCtx = c?.getContext('2d');
           }}
         />
       </div>

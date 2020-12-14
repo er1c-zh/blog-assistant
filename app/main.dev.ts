@@ -22,6 +22,7 @@ import {
 } from 'electron';
 import { autoUpdater } from 'electron-updater';
 import log from 'electron-log';
+import fs from 'fs';
 import MenuBuilder from './menu';
 import snapshot from './snapshot';
 
@@ -182,6 +183,14 @@ app.whenReady().then(() => {
       _w.show();
       _w.setFullScreen(true);
     });
+  });
+
+  ipcMain.handle('get-img', async (_e, ...paths: string[]) => {
+    // eslint-disable-next-line @typescript-eslint/no-use-before-define
+    const p = getAssetPath(...paths);
+    const data = fs.readFileSync(p);
+    console.log(data);
+    return data;
   });
 
   globalShortcut.register('CommandOrControl+Alt+D', () => {
