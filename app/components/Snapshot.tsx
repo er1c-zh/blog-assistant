@@ -126,7 +126,24 @@ class Snapshot extends React.Component<
       return;
     }
 
-    const iconList: string[] = [svgSelect.toString(), svgCancel.toString()];
+    const iconList: any[] = [
+      {
+        svgStr: svgSelect.toString(),
+        onclick: () => {
+          console.log('click select tool!');
+        },
+        topLeftX: 0,
+        topLeftY: 0,
+      },
+      {
+        svgStr: svgCancel.toString(),
+        onclick: () => {
+          console.log('click cancel tool!');
+        },
+        topLeftX: 0,
+        topLeftY: 0,
+      },
+    ];
     const iconCnt = iconList.length;
     // const toolBarHeight = this.maskCanvas.height / 32;
     const toolBarHeight = 32;
@@ -168,7 +185,100 @@ class Snapshot extends React.Component<
           );
         }
       };
-      iconImg.src = iconList[i];
+      iconImg.src = iconList[i].svgStr;
+      iconList[i].topLeftX = toolBarFromX + toolBarWidthPerItem * i;
+      iconList[i].topLeftY = toolBarFromY;
+    }
+    this.maskCanvas.onclick = (e) => {
+      const { x, y } = this.convert(e);
+      for (let i = 0; i < iconList.length; i += 1) {
+        const icon = iconList[i];
+        if (
+          x > icon.topLeftX &&
+          x < icon.topLeftX + toolBarWidthPerItem &&
+          y > icon.topLeftY &&
+          y < icon.topLeftY + toolBarHeight
+        ) {
+          icon.onclick(e);
+          return;
+        }
+      }
+    };
+  }
+
+  private convert(e: MouseEvent) {
+    const x = e.clientX;
+    const y = e.clientY;
+    const c = this.maskCanvas;
+    if (c == null) {
+      return {
+        x,
+        y,
+      };
+    }
+    const convertRect = c.getBoundingClientRect();
+    console.log(convertRect);
+    // eslint-disable-next-line @typescript-eslint/naming-convention,no-underscore-dangle
+    const _x = x - convertRect.left * (c.width / convertRect.width);
+    // eslint-disable-next-line @typescript-eslint/naming-convention,no-underscore-dangle
+    const _y = y - convertRect.top * (c.height / convertRect.height);
+    console.log(`convert(${x},${y}) to (${_x},${_y})`);
+    return {
+      x: _x,
+      y: _y,
+    };
+  }
+
+  private addCanvasWaitChooseHandler() {
+    const c = this.maskCanvas;
+    const ctx = this.maskCtx;
+    // eslint-disable-next-line promise/always-return
+    if (c != null && ctx != null) {
+      const clear = () => {
+        ctx.clearRect(0, 0, c.width, c.height);
+        ctx.fillStyle = '#000000';
+        ctx.globalAlpha = 0.64;
+        ctx.fillRect(0, 0, c.width, c.height);
+      };
+      clear();
+      c.onmousedown = (e: MouseEvent) => {
+        const { x, y } = this.convert(e);
+        console.log(`onmousedown (${x},${y})`);
+        clear();
+        this.downX = x;
+        this.downY = y;
+        this.downing = true;
+      };
+      c.onmousemove = (e: MouseEvent) => {
+        if (!this.downing) {
+          return;
+        }
+        const { x, y } = this.convert(e);
+        console.log(`onmousemove(${x},${y})`);
+        clear();
+        console.log(
+          `clearReact(${this.downX}, ${this.downY}, ${x - this.downX}, ${
+            y - this.downY
+          })`
+        );
+        clear();
+        ctx.clearRect(this.downX, this.downY, x - this.downX, y - this.downY);
+      };
+      c.onmouseup = (e: MouseEvent) => {
+        const { x, y } = this.convert(e);
+        console.log(`onmouseup (${x},${y})`);
+        this.downing = false;
+        this.upX = x;
+        this.upY = y;
+        clear();
+        ctx.clearRect(this.downX, this.downY, x - this.downX, y - this.downY);
+        console.log(`(${this.downX},${this.downY}) (${this.upX},${this.upY})`);
+        this.drawToolBar();
+
+        c.onmouseup = null;
+        c.onmousedown = null;
+        c.onmousemove = null;
+      };
     }
   }
 
@@ -217,69 +327,7 @@ class Snapshot extends React.Component<
       });
       ipcRenderer.send('show-snapshot', 'done');
 
-      const c = this.maskCanvas;
-      const ctx = this.maskCtx;
-      // eslint-disable-next-line promise/always-return
-      if (c != null && ctx != null) {
-        const convert = (e: MouseEvent) => {
-          const x = e.clientX;
-          const y = e.clientY;
-          const convertRect = c.getBoundingClientRect();
-          console.log(convertRect);
-          // eslint-disable-next-line @typescript-eslint/naming-convention,no-underscore-dangle
-          const _x = x - convertRect.left * (c.width / convertRect.width);
-          // eslint-disable-next-line @typescript-eslint/naming-convention,no-underscore-dangle
-          const _y = y - convertRect.top * (c.height / convertRect.height);
-          console.log(`convert(${x},${y}) to (${_x},${_y})`);
-          return {
-            x: _x,
-            y: _y,
-          };
-        };
-        const clear = () => {
-          ctx.clearRect(0, 0, c.width, c.height);
-          ctx.fillStyle = '#000000';
-          ctx.globalAlpha = 0.64;
-          ctx.fillRect(0, 0, c.width, c.height);
-        };
-        clear();
-        c.onmousedown = (e: MouseEvent) => {
-          const { x, y } = convert(e);
-          console.log(`onmousedown (${x},${y})`);
-          clear();
-          this.downX = x;
-          this.downY = y;
-          this.downing = true;
-        };
-        c.onmousemove = (e: MouseEvent) => {
-          if (!this.downing) {
-            return;
-          }
-          const { x, y } = convert(e);
-          console.log(`onmousemove(${x},${y})`);
-          clear();
-          console.log(
-            `clearReact(${this.downX}, ${this.downY}, ${x - this.downX}, ${
-              y - this.downY
-            })`
-          );
-          clear();
-          ctx.clearRect(this.downX, this.downY, x - this.downX, y - this.downY);
-        };
-        c.onmouseup = (e: MouseEvent) => {
-          const { x, y } = convert(e);
-          console.log(`onmouseup (${x},${y})`);
-          this.downing = false;
-          this.upX = x;
-          this.upY = y;
-          clear();
-          ctx.clearRect(this.downX, this.downY, x - this.downX, y - this.downY);
-          console.log(
-            `(${this.downX},${this.downY}) (${this.upX},${this.upY})`
-          );
-          this.drawToolBar();
-        };
-      }
+      this.addCanvasWaitChooseHandler();
     });
   }
 
