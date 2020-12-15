@@ -1,8 +1,10 @@
 import React from 'react';
 import { desktopCapturer, ipcRenderer } from 'electron';
 import { withRouter } from 'react-router';
-import svgSelect from '../resources/select-bold.svg';
-import svgCancel from '../resources/close-bold.svg';
+import svgSelect from '../resources/select.svg';
+import svgCancel from '../resources/close.svg';
+import svgUpload from '../resources/upload.svg';
+import svgSave from '../resources/save.svg';
 
 class Snapshot extends React.Component<
   // eslint-disable-next-line @typescript-eslint/ban-types
@@ -127,6 +129,24 @@ class Snapshot extends React.Component<
     }
 
     const iconList: any[] = [
+      {
+        svgStr: svgUpload.toString(),
+        onclick: () => {
+          console.log('click upload!');
+        },
+        topLeftX: 0,
+        topLeftY: 0,
+        active: false,
+      },
+      {
+        svgStr: svgSave.toString(),
+        onclick: () => {
+          console.log('click save!');
+        },
+        topLeftX: 0,
+        topLeftY: 0,
+        active: false,
+      },
       {
         svgStr: svgSelect.toString(),
         onclick: () => {
@@ -310,6 +330,12 @@ class Snapshot extends React.Component<
       c.onmouseup = (e: MouseEvent) => {
         const { x, y } = this.convert(e);
         console.log(`onmouseup (${x},${y})`);
+        if (Math.abs(x - this.downX) < 4 || Math.abs(y - this.downY) < 4) {
+          clear();
+          this.downing = false;
+          console.log('delta too small, skip');
+          return;
+        }
         this.downing = false;
         this.upX = x;
         this.upY = y;
