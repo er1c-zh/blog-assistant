@@ -134,14 +134,21 @@ class Snapshot extends React.Component<
         },
         topLeftX: 0,
         topLeftY: 0,
+        active: false,
       },
       {
         svgStr: svgCancel.toString(),
         onclick: () => {
-          console.log('click cancel tool!');
+          if (this.maskCanvas == null) {
+            return;
+          }
+          this.maskCanvas.onclick = null;
+          this.maskCanvas.onmousemove = null;
+          this.addCanvasWaitChooseHandler();
         },
         topLeftX: 0,
         topLeftY: 0,
+        active: false,
       },
     ];
     const iconCnt = iconList.length;
@@ -159,48 +166,84 @@ class Snapshot extends React.Component<
 
     console.log(`drawToolBar(${toolBarFromX},${toolBarFromY})`);
 
-    this.maskCtx.fillStyle = '#ff00ff';
-    this.maskCtx.globalAlpha = 1;
-    this.maskCtx.fillRect(
-      toolBarFromX,
-      toolBarFromY,
-      toolBarWidthPerItem * 2,
-      toolBarHeight
-    );
-    this.maskCtx.fillStyle = '#00ff00';
-    this.maskCtx.globalAlpha = 1;
+    const drawToolIcon = (
+      x: number,
+      y: number,
+      isActive: boolean,
+      icon: string
+    ) => {
+      if (this.maskCtx == null) {
+        return;
+      }
 
-    for (let i = 0; i < iconList.length; i += 1) {
       const iconImg = new Image();
       // eslint-disable-next-line no-loop-func
       iconImg.onload = () => {
         if (this.maskCtx != null) {
+          if (isActive) {
+            this.maskCtx.fillStyle = '#c2c2c2';
+          } else {
+            this.maskCtx.fillStyle = '#e7e7e7';
+          }
+          this.maskCtx.globalAlpha = 1;
+          this.maskCtx.fillRect(x, y, toolBarWidthPerItem, toolBarHeight);
           this.maskCtx.globalAlpha = 1;
           this.maskCtx.drawImage(
             iconImg,
-            toolBarFromX + toolBarWidthPerItem * i,
-            toolBarFromY,
+            x,
+            y,
             toolBarWidthPerItem,
             toolBarHeight
           );
         }
       };
-      iconImg.src = iconList[i].svgStr;
+      iconImg.src = icon;
+    };
+
+    for (let i = 0; i < iconList.length; i += 1) {
       iconList[i].topLeftX = toolBarFromX + toolBarWidthPerItem * i;
       iconList[i].topLeftY = toolBarFromY;
+      drawToolIcon(
+        iconList[i].topLeftX,
+        iconList[i].topLeftY,
+        false,
+        iconList[i].svgStr
+      );
     }
     this.maskCanvas.onclick = (e) => {
       const { x, y } = this.convert(e);
       for (let i = 0; i < iconList.length; i += 1) {
         const icon = iconList[i];
         if (
-          x > icon.topLeftX &&
+          x >= icon.topLeftX &&
           x < icon.topLeftX + toolBarWidthPerItem &&
-          y > icon.topLeftY &&
+          y >= icon.topLeftY &&
           y < icon.topLeftY + toolBarHeight
         ) {
           icon.onclick(e);
           return;
+        }
+      }
+    };
+    console.log('register onmousemove');
+    this.maskCanvas.onmousemove = (e) => {
+      console.log(e);
+      const { x, y } = this.convert(e);
+      for (let i = 0; i < iconList.length; i += 1) {
+        const icon = iconList[i];
+        if (
+          x >= icon.topLeftX &&
+          x < icon.topLeftX + toolBarWidthPerItem &&
+          y >= icon.topLeftY &&
+          y < icon.topLeftY + toolBarHeight
+        ) {
+          if (!icon.active) {
+            drawToolIcon(icon.topLeftX, icon.topLeftY, true, icon.svgStr);
+            icon.active = true;
+          }
+        } else if (icon.active) {
+          drawToolIcon(icon.topLeftX, icon.topLeftY, false, icon.svgStr);
+          icon.active = false;
         }
       }
     };
@@ -273,11 +316,12 @@ class Snapshot extends React.Component<
         clear();
         ctx.clearRect(this.downX, this.downY, x - this.downX, y - this.downY);
         console.log(`(${this.downX},${this.downY}) (${this.upX},${this.upY})`);
-        this.drawToolBar();
 
         c.onmouseup = null;
         c.onmousedown = null;
         c.onmousemove = null;
+
+        this.drawToolBar();
       };
     }
   }
