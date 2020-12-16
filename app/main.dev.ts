@@ -14,17 +14,21 @@ import path from 'path';
 import {
   app,
   BrowserWindow,
+  dialog,
   globalShortcut,
   ipcMain,
   Menu,
+  Notification,
   Tray,
   screen,
+  nativeImage,
 } from 'electron';
 import { autoUpdater } from 'electron-updater';
 import log from 'electron-log';
-import fs from 'fs';
 import MenuBuilder from './menu';
 import snapshot from './snapshot';
+
+const fs = require('fs');
 
 export default class AppUpdater {
   constructor() {
@@ -159,7 +163,7 @@ app.whenReady().then(() => {
   tray.setContextMenu(menu);
 });
 
-const windowsMap = new Map();
+const windowsMap = new Map<number, BrowserWindow>();
 let once = false;
 /**
  * register shortcut
@@ -185,12 +189,74 @@ app.whenReady().then(() => {
     });
   });
 
-  ipcMain.handle('get-img', async (_e, ...paths: string[]) => {
-    // eslint-disable-next-line @typescript-eslint/no-use-before-define
-    const p = getAssetPath(...paths);
-    const data = fs.readFileSync(p);
-    console.log(data);
-    return data;
+  ipcMain.on('show-notification', (_e, ...args) => {
+    const n = new Notification(args[0]);
+    n.on('show', () => {
+      setTimeout(() => {
+        n.close();
+      }, 3000);
+    });
+    n.on('click', () => {
+      n.close();
+    });
+    n.show();
+    console.log(args);
+  });
+
+  ipcMain.handle('show-choose-path', (_e, ...args) => {
+    const idx = args[0];
+    console.log(idx);
+    const parentWin = windowsMap.get(Number(idx));
+    console.log(windowsMap);
+    console.log(parentWin);
+    if (parentWin === undefined) {
+      return '';
+    }
+    const now = new Date();
+    now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+    const selected = dialog.showSaveDialogSync(parentWin, {
+      title: 'Location to save',
+      defaultPath: `BA_snapshot_${now
+        .toJSON()
+        .substr(0, 19)
+        .replace(/[-T]/g, '')}.png`,
+      properties: ['createDirectory', 'showOverwriteConfirmation'],
+      filters: [
+        {
+          name: 'Images',
+          extensions: ['png', 'jpg', 'bmp'],
+        },
+      ],
+    });
+    console.log(`select ${selected}`);
+    return selected;
+  });
+
+  ipcMain.handle('save-img', (_e, ...args) => {
+    let filePath = args[0] as string;
+    const imgDataURL = args[1] as string;
+    const img = nativeImage.createFromDataURL(imgDataURL);
+    console.log(path.extname(filePath).toLowerCase());
+    switch (path.extname(filePath).toLowerCase()) {
+      case '.png':
+        fs.writeFileSync(filePath, img.toPNG());
+        break;
+      case '.jpg':
+        fs.writeFileSync(filePath, img.toJPEG(100));
+        break;
+      case '.bmp':
+        fs.writeFileSync(filePath, img.toBitmap());
+        break;
+      default:
+        filePath = `${filePath}.png`;
+        fs.writeFileSync(filePath, img.toPNG());
+        break;
+    }
+    return {
+      ok: true,
+      msg: 'success',
+      path: filePath,
+    };
   });
 
   globalShortcut.register('CommandOrControl+Alt+D', () => {
@@ -214,12 +280,13 @@ app.whenReady().then(() => {
           console.log('snapshot window already run');
           return;
         }
+        w.setAlwaysOnTop(true, 'screen-saver');
         console.log(`snapshot result=${w}`);
         console.log(w);
         // eslint-disable-next-line @typescript-eslint/naming-convention,no-underscore-dangle
         const _idx = Number(idx) + 1;
         w.loadURL(`file://${__dirname}/app.html#/snapshot/${_idx}`);
-        windowsMap.set(display.id, w);
+        windowsMap.set(_idx, w);
         console.log('snapshot window create finish');
       };
       f();

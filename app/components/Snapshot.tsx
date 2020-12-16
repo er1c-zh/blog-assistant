@@ -1,5 +1,5 @@
 import React from 'react';
-import { desktopCapturer, ipcRenderer } from 'electron';
+import { clipboard, desktopCapturer, ipcRenderer, nativeImage } from 'electron';
 import { withRouter } from 'react-router';
 import svgSelect from '../resources/select.svg';
 import svgCancel from '../resources/close.svg';
@@ -13,6 +13,7 @@ class Snapshot extends React.Component<
     img: null | JSX.Element;
     width: number | undefined;
     height: number | undefined;
+    imgDataBase64: string | undefined;
   }
 > {
   // eslint-disable-next-line @typescript-eslint/no-useless-constructor,react/sort-comp
@@ -39,6 +40,7 @@ class Snapshot extends React.Component<
       width: 0,
       // eslint-disable-next-line react/no-unused-state
       height: 0,
+      imgDataBase64: '',
     };
     document.addEventListener('keydown', (e: any) => {
       switch (e.key) {
@@ -46,7 +48,7 @@ class Snapshot extends React.Component<
           break;
         case 'Escape':
           console.log('get esc pressed');
-          ipcRenderer.send('close-snapshot-all', '');
+          this.quitAll();
           break;
       }
     });
@@ -115,6 +117,22 @@ class Snapshot extends React.Component<
     };
   }
 
+  private getSnapshotAsNativeImg() {
+    const { state } = this;
+    console.log(state.imgDataBase64);
+    return nativeImage.createFromDataURL(state.imgDataBase64 as string);
+  }
+
+  private getSnapshotDataURL() {
+    const { state } = this;
+    return state.imgDataBase64;
+  }
+
+  // eslint-disable-next-line class-methods-use-this
+  private quitAll() {
+    ipcRenderer.send('close-snapshot-all', '');
+  }
+
   private async drawToolBar() {
     console.log(
       `drawToolBar canvas width:${this.maskCanvas?.width}, height:${this.maskCanvas?.height}`
@@ -141,7 +159,22 @@ class Snapshot extends React.Component<
       {
         svgStr: svgSave.toString(),
         onclick: () => {
+          const { idx } = (this.props as any).match.params;
           console.log('click save!');
+          // eslint-disable-next-line promise/catch-or-return,promise/always-return
+          ipcRenderer.invoke('show-choose-path', idx).then((path) => {
+            // eslint-disable-next-line promise/always-return,promise/catch-or-return,promise/no-nesting
+            ipcRenderer
+              .invoke('save-img', path, this.getSnapshotDataURL())
+              // eslint-disable-next-line promise/always-return
+              .then((_result) => {
+                ipcRenderer.send('show-notification', {
+                  title: 'Saved!',
+                  body: `Snapshot saved to ${_result.path} successfully.`,
+                });
+                this.quitAll();
+              });
+          });
         },
         topLeftX: 0,
         topLeftY: 0,
@@ -151,6 +184,12 @@ class Snapshot extends React.Component<
         svgStr: svgSelect.toString(),
         onclick: () => {
           console.log('click select tool!');
+          clipboard.writeImage(this.getSnapshotAsNativeImg());
+          ipcRenderer.send('show-notification', {
+            title: 'Copied!',
+            body: 'Snapshot copied to clipboard successfully.',
+          });
+          this.quitAll();
         },
         topLeftX: 0,
         topLeftY: 0,
@@ -247,7 +286,6 @@ class Snapshot extends React.Component<
     };
     console.log('register onmousemove');
     this.maskCanvas.onmousemove = (e) => {
-      console.log(e);
       const { x, y } = this.convert(e);
       for (let i = 0; i < iconList.length; i += 1) {
         const icon = iconList[i];
@@ -280,12 +318,10 @@ class Snapshot extends React.Component<
       };
     }
     const convertRect = c.getBoundingClientRect();
-    console.log(convertRect);
     // eslint-disable-next-line @typescript-eslint/naming-convention,no-underscore-dangle
     const _x = x - convertRect.left * (c.width / convertRect.width);
     // eslint-disable-next-line @typescript-eslint/naming-convention,no-underscore-dangle
     const _y = y - convertRect.top * (c.height / convertRect.height);
-    console.log(`convert(${x},${y}) to (${_x},${_y})`);
     return {
       x: _x,
       y: _y,
@@ -388,12 +424,10 @@ class Snapshot extends React.Component<
       // <img alt={imgData?.data} src={imgData?.data} style={Map(
       // )}/>
       this.setState({
-        // eslint-disable-next-line react/no-unused-state
         img,
-        // eslint-disable-next-line react/no-unused-state
         width: imgData.width,
-        // eslint-disable-next-line react/no-unused-state
         height: imgData.height,
+        imgDataBase64: imgData.data,
       });
       ipcRenderer.send('show-snapshot', 'done');
 
