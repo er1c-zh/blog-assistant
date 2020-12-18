@@ -10,16 +10,18 @@ class Snapshot extends React.Component<
   // eslint-disable-next-line @typescript-eslint/ban-types
   {},
   {
-    img: null | JSX.Element;
     width: number | undefined;
     height: number | undefined;
     imgDataBase64: string | undefined;
   }
 > {
-  // eslint-disable-next-line @typescript-eslint/no-useless-constructor,react/sort-comp
   private maskCtx: CanvasRenderingContext2D | null | undefined;
 
   private maskCanvas: HTMLCanvasElement | null | undefined;
+
+  private srcImgCtx: CanvasRenderingContext2D | null | undefined;
+
+  private srcImgCanvas: HTMLCanvasElement | null | undefined;
 
   private downX = 0;
 
@@ -34,8 +36,6 @@ class Snapshot extends React.Component<
   constructor(props: any) {
     super(props);
     this.state = {
-      // eslint-disable-next-line react/no-unused-state
-      img: null,
       // eslint-disable-next-line react/no-unused-state
       width: 0,
       // eslint-disable-next-line react/no-unused-state
@@ -117,15 +117,29 @@ class Snapshot extends React.Component<
     };
   }
 
-  private getSnapshotAsNativeImg() {
-    const { state } = this;
-    console.log(state.imgDataBase64);
-    return nativeImage.createFromDataURL(state.imgDataBase64 as string);
-  }
-
   private getSnapshotDataURL() {
     const { state } = this;
-    return state.imgDataBase64;
+    console.log(state.imgDataBase64);
+    if (this.srcImgCtx == null) {
+      return '';
+    }
+    const imgData = this.srcImgCtx.getImageData(
+      this.downX,
+      this.downY,
+      this.upX - this.downX,
+      this.upY - this.downY
+    );
+    console.log(imgData);
+    const resultCanvas = document.createElement('canvas');
+    resultCanvas.width = imgData.width;
+    resultCanvas.height = imgData.height;
+    const resultCtx = resultCanvas.getContext('2d');
+    resultCtx?.putImageData(imgData, 0, 0);
+    return resultCanvas.toDataURL();
+  }
+
+  private getSnapshotAsNativeImg() {
+    return nativeImage.createFromDataURL(this.getSnapshotDataURL());
   }
 
   // eslint-disable-next-line class-methods-use-this
@@ -400,35 +414,30 @@ class Snapshot extends React.Component<
       if (!imgData.ok) {
         this.setState({
           // eslint-disable-next-line react/no-unused-state
-          img: <p>${imgData.msg}</p>,
-          // eslint-disable-next-line react/no-unused-state
           width: 0,
           // eslint-disable-next-line react/no-unused-state
           height: 0,
+
+          imgDataBase64: '', // todo load fail svg
         });
         return;
       }
-      // eslint-disable-next-line jsx-a11y/alt-text
-      const img = (
-        // eslint-disable-next-line jsx-a11y/alt-text
-        <img
-          src={imgData.data}
-          style={{
-            zIndex: 0,
-            width: imgData.width,
-            height: imgData.height,
-          }}
-        />
-      );
       // eslint-disable-next-line react/style-prop-object
-      // <img alt={imgData?.data} src={imgData?.data} style={Map(
-      // )}/>
       this.setState({
-        img,
         width: imgData.width,
         height: imgData.height,
         imgDataBase64: imgData.data,
       });
+
+      // eslint-disable-next-line promise/always-return
+      const srcImg = new Image();
+      srcImg.onload = () => {
+        if (this.srcImgCanvas != null && this.srcImgCtx != null) {
+          this.srcImgCtx.drawImage(srcImg, 0, 0);
+        }
+      };
+      srcImg.src = imgData.data as string;
+
       ipcRenderer.send('show-snapshot', 'done');
 
       this.addCanvasWaitChooseHandler();
@@ -446,8 +455,20 @@ class Snapshot extends React.Component<
           height: `${visible.height}px`,
         }}
       >
-        {/* eslint-disable-next-line react/destructuring-assignment */}
-        {visible.img}
+        <canvas
+          id="src_img"
+          width={`${visible.width}px`}
+          height={`${visible.height}px`}
+          style={{
+            zIndex: 0,
+            width: `${visible.width}px`,
+            height: `${visible.height}px`,
+          }}
+          ref={(c) => {
+            this.srcImgCanvas = c;
+            this.srcImgCtx = c?.getContext('2d');
+          }}
+        />
         <canvas
           id="mask"
           width={`${visible.width}px`}
@@ -457,9 +478,7 @@ class Snapshot extends React.Component<
             left: 0,
             top: 0,
             zIndex: 1,
-            // eslint-disable-next-line react/destructuring-assignment
             width: `${visible.width}px`,
-            // eslint-disable-next-line react/destructuring-assignment
             height: `${visible.height}px`,
           }}
           ref={(c) => {
