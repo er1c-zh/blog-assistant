@@ -5,15 +5,21 @@ import svgSelect from '../resources/select.svg';
 import svgCancel from '../resources/close.svg';
 import svgUpload from '../resources/upload.svg';
 import svgSave from '../resources/save.svg';
+import log from '../utils/render_log';
+import utils from '../utils/utils';
+import global from '../constants/global.json';
+
+export type SnapshotProps = undefined;
+export type SnapshotState = {
+  width: number | undefined;
+
+  height: number | undefined;
+};
 
 class Snapshot extends React.Component<
   // eslint-disable-next-line @typescript-eslint/ban-types
-  {},
-  {
-    width: number | undefined;
-    height: number | undefined;
-    imgDataBase64: string | undefined;
-  }
+  SnapshotProps,
+  SnapshotState
 > {
   private maskCtx: CanvasRenderingContext2D | null | undefined;
 
@@ -33,31 +39,28 @@ class Snapshot extends React.Component<
 
   private downing = false;
 
-  constructor(props: any) {
+  constructor(props: SnapshotProps) {
     super(props);
     this.state = {
       // eslint-disable-next-line react/no-unused-state
       width: 0,
       // eslint-disable-next-line react/no-unused-state
       height: 0,
-      imgDataBase64: '',
     };
-    document.addEventListener('keydown', (e: any) => {
+    document.addEventListener('keydown', (e: KeyboardEvent) => {
       switch (e.key) {
         default:
           break;
         case 'Escape':
-          console.log('get esc pressed');
-          this.quitAll();
+          log.log('get esc pressed');
+          Snapshot.quitAll();
           break;
       }
     });
   }
 
-  // eslint-disable-next-line class-methods-use-this,react/sort-comp
-  private async getScreenShot(idx: any) {
-    // eslint-disable-next-line react-hooks/rules-of-hooks
-    console.log(`getScreenShot idx=${idx}`);
+  private static async getScreenShot(idx: number) {
+    log.log(`getScreenShot idx=${idx}`);
     // eslint-disable-next-line promise/catch-or-return
     const sources = await desktopCapturer.getSources({
       types: ['screen'],
@@ -69,8 +72,8 @@ class Snapshot extends React.Component<
         // eslint-disable-next-line no-continue
         continue;
       }
-      console.log(source);
-      console.log(`id:${source.id} display_id:${source.display_id}`);
+      log.log(source);
+      log.log(`id:${source.id} display_id:${source.display_id}`);
       // eslint-disable-next-line no-await-in-loop
       const stream = await (navigator.mediaDevices as any).getUserMedia({
         audio: false,
@@ -90,7 +93,7 @@ class Snapshot extends React.Component<
       const snapshotCanvas = document.createElement('canvas');
       snapshotCanvas.width = videoContainer.videoWidth;
       snapshotCanvas.height = videoContainer.videoHeight;
-      console.log(
+      log.log(
         `width${videoContainer.videoWidth}height${videoContainer.videoHeight}`
       );
       const ctx = snapshotCanvas.getContext('2d');
@@ -102,7 +105,6 @@ class Snapshot extends React.Component<
         videoContainer.videoHeight
       );
       const snapshotDataURL = snapshotCanvas.toDataURL();
-      // console.log(snapshotDataURL);
       return {
         ok: true,
         key: snapshotDataURL,
@@ -118,8 +120,6 @@ class Snapshot extends React.Component<
   }
 
   private getSnapshotDataURL() {
-    const { state } = this;
-    console.log(state.imgDataBase64);
     if (this.srcImgCtx == null) {
       return '';
     }
@@ -129,7 +129,6 @@ class Snapshot extends React.Component<
       this.upX - this.downX,
       this.upY - this.downY
     );
-    console.log(imgData);
     const resultCanvas = document.createElement('canvas');
     resultCanvas.width = imgData.width;
     resultCanvas.height = imgData.height;
@@ -142,21 +141,21 @@ class Snapshot extends React.Component<
     return nativeImage.createFromDataURL(this.getSnapshotDataURL());
   }
 
-  // eslint-disable-next-line class-methods-use-this
-  private quitAll() {
+  // eslint-disable-next-line react/sort-comp
+  private static quitAll() {
     ipcRenderer.send('close-snapshot-all', '');
   }
 
   private async drawToolBar() {
-    console.log(
+    log.log(
       `drawToolBar canvas width:${this.maskCanvas?.width}, height:${this.maskCanvas?.height}`
     );
     if (!this.maskCanvas) {
-      console.log('this.maskCanvas is null');
+      log.log('this.maskCanvas is null');
       return;
     }
     if (!this.maskCtx) {
-      console.log('this.maskCtx is null');
+      log.log('this.maskCtx is null');
       return;
     }
 
@@ -164,7 +163,18 @@ class Snapshot extends React.Component<
       {
         svgStr: svgUpload.toString(),
         onclick: () => {
-          console.log('click upload!');
+          log.log('click upload!');
+          // eslint-disable-next-line promise/catch-or-return,promise/always-return
+          ipcRenderer.invoke('get-tmp-dir').then((tmpDir: string) => {
+            const tmpPath = `${tmpDir}/${utils.genImgFileName()}`;
+            ipcRenderer
+              .invoke('save-img', tmpPath, this.getSnapshotDataURL())
+              .then(() => {
+                ipcRenderer.invoke('upload-img', tmpPath);
+                return null;
+              })
+              .catch(() => {});
+          });
         },
         topLeftX: 0,
         topLeftY: 0,
@@ -174,7 +184,7 @@ class Snapshot extends React.Component<
         svgStr: svgSave.toString(),
         onclick: () => {
           const { idx } = (this.props as any).match.params;
-          console.log('click save!');
+          log.log('click save!');
           // eslint-disable-next-line promise/catch-or-return,promise/always-return
           ipcRenderer.invoke('show-choose-path', idx).then((path) => {
             // eslint-disable-next-line promise/always-return,promise/catch-or-return,promise/no-nesting
@@ -186,7 +196,7 @@ class Snapshot extends React.Component<
                   title: 'Saved!',
                   body: `Snapshot saved to ${_result.path} successfully.`,
                 });
-                this.quitAll();
+                Snapshot.quitAll();
               });
           });
         },
@@ -197,13 +207,13 @@ class Snapshot extends React.Component<
       {
         svgStr: svgSelect.toString(),
         onclick: () => {
-          console.log('click select tool!');
+          log.log('click select tool!');
           clipboard.writeImage(this.getSnapshotAsNativeImg());
           ipcRenderer.send('show-notification', {
             title: 'Copied!',
             body: 'Snapshot copied to clipboard successfully.',
           });
-          this.quitAll();
+          Snapshot.quitAll();
         },
         topLeftX: 0,
         topLeftY: 0,
@@ -225,9 +235,8 @@ class Snapshot extends React.Component<
       },
     ];
     const iconCnt = iconList.length;
-    // const toolBarHeight = this.maskCanvas.height / 32;
-    const toolBarHeight = 32;
-    const toolBarWidthPerItem = toolBarHeight;
+    const toolBarHeight = global.toolbar_size;
+    const toolBarWidthPerItem = global.toolbar_size;
     const toolBarFromX = Math.max(
       0,
       Math.max(this.upX, this.downX) - iconCnt * toolBarWidthPerItem
@@ -237,7 +246,7 @@ class Snapshot extends React.Component<
       this.maskCanvas.height - toolBarHeight
     );
 
-    console.log(`drawToolBar(${toolBarFromX},${toolBarFromY})`);
+    log.log(`drawToolBar(${toolBarFromX},${toolBarFromY})`);
 
     const drawToolIcon = (
       x: number,
@@ -298,7 +307,7 @@ class Snapshot extends React.Component<
         }
       }
     };
-    console.log('register onmousemove');
+    log.log('register onmousemove');
     this.maskCanvas.onmousemove = (e) => {
       const { x, y } = this.convert(e);
       for (let i = 0; i < iconList.length; i += 1) {
@@ -356,7 +365,7 @@ class Snapshot extends React.Component<
       clear();
       c.onmousedown = (e: MouseEvent) => {
         const { x, y } = this.convert(e);
-        console.log(`onmousedown (${x},${y})`);
+        log.log(`onmousedown (${x},${y})`);
         clear();
         this.downX = x;
         this.downY = y;
@@ -367,23 +376,17 @@ class Snapshot extends React.Component<
           return;
         }
         const { x, y } = this.convert(e);
-        console.log(`onmousemove(${x},${y})`);
         clear();
-        console.log(
-          `clearReact(${this.downX}, ${this.downY}, ${x - this.downX}, ${
-            y - this.downY
-          })`
-        );
         clear();
         ctx.clearRect(this.downX, this.downY, x - this.downX, y - this.downY);
       };
       c.onmouseup = (e: MouseEvent) => {
         const { x, y } = this.convert(e);
-        console.log(`onmouseup (${x},${y})`);
+        log.log(`onmouseup (${x},${y})`);
         if (Math.abs(x - this.downX) < 4 || Math.abs(y - this.downY) < 4) {
           clear();
           this.downing = false;
-          console.log('delta too small, skip');
+          log.log('delta too small, skip');
           return;
         }
         this.downing = false;
@@ -391,7 +394,7 @@ class Snapshot extends React.Component<
         this.upY = y;
         clear();
         ctx.clearRect(this.downX, this.downY, x - this.downX, y - this.downY);
-        console.log(`(${this.downX},${this.downY}) (${this.upX},${this.upY})`);
+        log.log(`(${this.downX},${this.downY}) (${this.upX},${this.upY})`);
 
         c.onmouseup = null;
         c.onmousedown = null;
@@ -404,29 +407,22 @@ class Snapshot extends React.Component<
 
   // eslint-disable-next-line react/sort-comp
   componentDidMount() {
-    // eslint-disable-next-line react-hooks/rules-of-hooks
-    // const idx = useParams();
-    // eslint-disable-next-line react/destructuring-assignment,react/prop-types
     const { idx } = (this.props as any).match.params;
-    // eslint-disable-next-line @typescript-eslint/no-use-before-define,promise/catch-or-return,promise/always-return
-    this.getScreenShot(idx).then((imgData) => {
+    // eslint-disable-next-line promise/catch-or-return
+    Snapshot.getScreenShot(idx).then((imgData) => {
       // eslint-disable-next-line promise/always-return
       if (!imgData.ok) {
         this.setState({
-          // eslint-disable-next-line react/no-unused-state
           width: 0,
-          // eslint-disable-next-line react/no-unused-state
-          height: 0,
 
-          imgDataBase64: '', // todo load fail svg
+          height: 0,
         });
+        // todo error handler
         return;
       }
-      // eslint-disable-next-line react/style-prop-object
       this.setState({
         width: imgData.width,
         height: imgData.height,
-        imgDataBase64: imgData.data,
       });
 
       // eslint-disable-next-line promise/always-return

@@ -1,0 +1,6 @@
+{
+  "app_name": "blog_assistant",
+  "img_default_prefix": "BA_snapshot_",
+  "img_default_ext": "png",
+  "toolbar_size": 32
+}

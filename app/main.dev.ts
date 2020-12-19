@@ -1,4 +1,4 @@
-/* eslint global-require: off, no-console: off */
+/* eslint global-require: off */
 
 /**
  * This module executes inside of electron's main process. You can start
@@ -25,9 +25,12 @@ import {
 } from 'electron';
 import { autoUpdater } from 'electron-updater';
 import log from 'electron-log';
+import global from './constants/global.json';
 import MenuBuilder from './menu';
 import snapshot from './snapshot';
+import utils from './utils/utils';
 
+const os = require('os');
 const fs = require('fs');
 
 export default class AppUpdater {
@@ -71,7 +74,7 @@ const installExtensions = async () => {
       extensions.map((name) => installer[name]),
       forceDownload
     )
-    .catch(console.log);
+    .catch(log.log);
    */
 };
 
@@ -152,7 +155,7 @@ let tray = null;
 // eslint-disable-next-line promise/catch-or-return,promise/always-return
 app.whenReady().then(() => {
   const iconPath = path.join(getAssetPath('icon.png'));
-  console.log(`load tray icon from:${iconPath}`);
+  log.log(`load tray icon from:${iconPath}`);
   tray = new Tray(iconPath);
   const menu = Menu.buildFromTemplate([
     { label: 'Settings', type: 'normal' },
@@ -172,18 +175,20 @@ let once = false;
 app.whenReady().then(() => {
   // eslint-disable-next-line no-loop-func
   ipcMain.on('close-snapshot-all', () => {
-    console.log('close-snapshot-all');
+    log.log('close-snapshot-all');
     // eslint-disable-next-line no-shadow
-    windowsMap.forEach((_w: any) => {
-      _w.close();
+    windowsMap.forEach((_w: BrowserWindow) => {
+      if (!_w.isDestroyed()) {
+        _w.close();
+      }
     });
     windowsMap.clear();
     once = false;
   });
 
   ipcMain.on('show-snapshot', () => {
-    console.log('show-snapshot');
-    windowsMap.forEach((_w: any) => {
+    log.log('show-snapshot');
+    windowsMap.forEach((_w: BrowserWindow) => {
       _w.show();
       _w.setFullScreen(true);
     });
@@ -200,26 +205,21 @@ app.whenReady().then(() => {
       n.close();
     });
     n.show();
-    console.log(args);
+    log.log(args);
   });
 
   ipcMain.handle('show-choose-path', (_e, ...args) => {
     const idx = args[0];
-    console.log(idx);
+    log.log(idx);
     const parentWin = windowsMap.get(Number(idx));
-    console.log(windowsMap);
-    console.log(parentWin);
+    log.log(windowsMap);
+    log.log(parentWin);
     if (parentWin === undefined) {
       return '';
     }
-    const now = new Date();
-    now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
     const selected = dialog.showSaveDialogSync(parentWin, {
       title: 'Location to save',
-      defaultPath: `BA_snapshot_${now
-        .toJSON()
-        .substr(0, 19)
-        .replace(/[-T]/g, '')}.png`,
+      defaultPath: utils.genImgFileName(),
       properties: ['createDirectory', 'showOverwriteConfirmation'],
       filters: [
         {
@@ -228,15 +228,22 @@ app.whenReady().then(() => {
         },
       ],
     });
-    console.log(`select ${selected}`);
+    log.log(`select ${selected}`);
     return selected;
+  });
+
+  ipcMain.handle('get-tmp-dir', () => {
+    return `${os.tmpdir()}/${global.app_name}`;
   });
 
   ipcMain.handle('save-img', (_e, ...args) => {
     let filePath = args[0] as string;
     const imgDataURL = args[1] as string;
+    fs.mkdirSync(path.dirname(filePath), {
+      recursive: true,
+    });
     const img = nativeImage.createFromDataURL(imgDataURL);
-    console.log(path.extname(filePath).toLowerCase());
+    log.log(path.extname(filePath).toLowerCase());
     switch (path.extname(filePath).toLowerCase()) {
       case '.png':
         fs.writeFileSync(filePath, img.toPNG());
@@ -259,35 +266,43 @@ app.whenReady().then(() => {
     };
   });
 
+  ipcMain.handle('log', (_e, ...args: any) => {
+    log.log(...args);
+  });
+
+  ipcMain.handle('upload-img', (_e, tmpPath: string) => {
+    log.log(`todo upload-img:${tmpPath}`);
+  });
+
   globalShortcut.register('CommandOrControl+Alt+D', () => {
-    console.log('Create screen snapshot window');
+    log.log('Create screen snapshot window');
     if (once) {
-      console.log('Already exist, return;');
+      log.log('Already exist, return;');
       return;
     }
     once = true;
     // eslint-disable-next-line no-restricted-globals
     const displays = screen.getAllDisplays();
-    console.log(displays);
+    log.log(displays);
     // eslint-disable-next-line no-restricted-syntax,guard-for-in
     for (const idx in displays) {
       const display = displays[idx];
-      console.log(`create on display${display.id}, idx=${idx}`);
-      console.log(display);
+      log.log(`create on display${display.id}, idx=${idx}`);
+      log.log(display);
       const f = () => {
         const w = snapshot(display);
         if (w == null) {
-          console.log('snapshot window already run');
+          log.log('snapshot window already run');
           return;
         }
         w.setAlwaysOnTop(true, 'screen-saver');
-        console.log(`snapshot result=${w}`);
-        console.log(w);
+        log.log(`snapshot result=${w}`);
+        log.log(w);
         // eslint-disable-next-line @typescript-eslint/naming-convention,no-underscore-dangle
         const _idx = Number(idx) + 1;
         w.loadURL(`file://${__dirname}/app.html#/snapshot/${_idx}`);
         windowsMap.set(_idx, w);
-        console.log('snapshot window create finish');
+        log.log('snapshot window create finish');
       };
       f();
     }
