@@ -37,10 +37,12 @@ jobs:
         run: |
           Xvfb :99 &
           disown -ar
-          echo "::set-env name=DISPLAY:::99"
+          echo "name=DISPLAY" >> $GITHUB_ENV
       # TODO: Testcafe e2e are broken because of:
       # https://github.com/DevExpress/testcafe/issues/4512
       # Tests are currently broken on linux and macos
       # - if: matrix.os == 'windows-latest'
       #   run: |
       #     yarn test-e2e
+
+#          echo "::set-env name=DISPLAY:::99"
