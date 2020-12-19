@@ -164,17 +164,44 @@ class Snapshot extends React.Component<
         svgStr: svgUpload.toString(),
         onclick: () => {
           log.log('click upload!');
-          // eslint-disable-next-line promise/catch-or-return,promise/always-return
-          ipcRenderer.invoke('get-tmp-dir').then((tmpDir: string) => {
-            const tmpPath = `${tmpDir}/${utils.genImgFileName()}`;
-            ipcRenderer
-              .invoke('save-img', tmpPath, this.getSnapshotDataURL())
-              .then(() => {
-                ipcRenderer.invoke('upload-img', tmpPath);
+
+          ipcRenderer
+            .invoke('get-tmp-dir')
+            .then(async (tmpDir: string) => {
+              const tmpPath = `${tmpDir}/${utils.genImgFileName()}`;
+              const saveResult = await ipcRenderer.invoke(
+                'save-img',
+                tmpPath,
+                this.getSnapshotDataURL()
+              );
+
+              if (!saveResult.ok) {
+                // todo error handle
+                log.log('save-img fail');
                 return null;
-              })
-              .catch(() => {});
-          });
+              }
+              log.log('save-img finish!');
+              const uploadResult = await ipcRenderer.invoke(
+                'upload-img',
+                tmpPath
+              );
+              if (!uploadResult.ok) {
+                ipcRenderer.send('show-notification', {
+                  title: 'Upload fail',
+                  body: `${uploadResult.msg}`,
+                });
+                return null;
+              }
+              ipcRenderer.send('show-notification', {
+                title: 'Uploaded!',
+                body: `${uploadResult.url}`,
+              });
+              Snapshot.quitAll();
+              return null;
+            })
+            .catch((err) => {
+              log.log(`get tmp file fail: ${err}`);
+            });
         },
         topLeftX: 0,
         topLeftY: 0,

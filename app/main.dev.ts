@@ -272,6 +272,11 @@ app.whenReady().then(() => {
 
   ipcMain.handle('upload-img', (_e, tmpPath: string) => {
     log.log(`todo upload-img:${tmpPath}`);
+    return {
+      ok: true,
+      msg: 'success',
+      url: 'url',
+    };
   });
 
   globalShortcut.register('CommandOrControl+Alt+D', () => {
